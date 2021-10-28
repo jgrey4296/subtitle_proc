@@ -10,4 +10,4 @@ mac:
 	python setup.py bdist_dmg
 
 pyinstaller:
-	pyinstaller sub_processor.py
+	pyinstaller -F --collect-all tkinterdnd2 -w sub_processor.py

@@ -18,7 +18,7 @@ import re
 import datetime
 import tkinter as tk
 import tkinter.ttk as ttk
-import argparse
+from tkinterdnd2 import *
 
 # Setup root_logger:
 from os.path import splitext, split
@@ -38,40 +38,56 @@ COUNTER   = re.compile("^[0-9]+$")
 
 MAIN_SIZE = 300
 
-parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
-                                 epilog = "\n".join(["SRT Processor"]))
-parser.add_argument('-t', "--target", action="append")
+def drop(event):
+    logging.info("Dropped: {}".format(event.data))
+    event.widget.insert("1.0", event.data + "\n")
 
-class Application(tk.Frame):
+def process(text: str) -> List[str]:
+    words = text.split(" ")
+    result = []
+    summed = ""
+    for word in words:
+        if (len(summed + word) + 1) < 42:
+            summed += " "
+            summed += word
+        else:
+            result.append(summed)
+            summed = word[:]
+
+    result.append(summed)
+    return result
+
+class SubtitleProcessor(tk.Frame):
 
     def __init__(self, master=None):
         super().__init__(master)
         master.minsize(width=MAIN_SIZE,height=MAIN_SIZE)
-        args = parser.parse_args()
-        if args.target is None:
-            logging.warning("No Targets Specified")
-            exit(1)
-        self.files = [abspath(expanduser(x)) for x in args.target]
+        self.files = []
+        self.label_txt = tk.StringVar()
+        self.label_txt.set("Drag and Drop Files to be processed. Backups will be created.")
 
-    def process(self, text: str) -> List[str]:
-        words = text.split(" ")
-        result = []
-        summed = ""
-        for word in words[0:]:
-            if len(summed) < 42:
-                summed += " "
-                summed += word
-            else:
-                result.append(summed)
-                summed = word[:]
+        self.label = tk.Label(textvariable=self.label_txt)
+        self.go_button = tk.Button(text="Process", command=self.get_and_process_files)
+        self.input_files_widget = tk.Text(name="file_drop")
 
-        result.append(summed)
-        return result
+        self.input_files_widget.pack()
+        self.go_button.pack()
+        self.label.pack()
 
-    def process_files(self):
+        self.input_files_widget.drop_target_register(DND_FILES)
+        self.input_files_widget.dnd_bind("<<Drop>>", drop)
+
+    def get_and_process_files(self):
+        files = self.input_files_widget.get("1.0", tk.END).split("\n")
+        logging.info("Got: {}".format(files))
+        self.process_files([x for x in files if bool(x.strip())])
+
+
+    def process_files(self, files: List[str]):
         lines : List[str] = []
 
-        for target in self.files:
+        for target in files:
+            logging.info("Processing: {}".format(target))
             with open(target, 'r') as f:
                 lines = f.readlines()
 
@@ -81,22 +97,33 @@ class Application(tk.Frame):
             # Loop over lines, reformatting as necessary
             cleaned : List[str] = []
             joined : str = ""
+            logging.info("Processing {} lines".format(len(lines)))
             for line in lines:
                 if not bool(line.strip()):
+                    logging.info("Empty Line")
                     cleaned += process(joined)
                     cleaned.append(line)
                     joined = ""
                 elif COUNTER.match(line):
+                    logging.info("Counter")
                     cleaned.append(line)
                 elif TIME_PAIR.match(line):
+                    logging.info("time")
                     cleaned.append(line)
                 else:
                     joined += line
                     continue
 
+            if bool(joined):
+                cleaned += process(joined)
+
+            cleaned.append("DONE")
+
             with open(target, 'w') as f:
                 f.write("\n".join(cleaned))
 
+        logging.info("Finished")
+        self.label_txt.set("Finished, it is safe to quit.")
 
     def destroy(self):
         """ Customised destroy method  """
@@ -104,6 +131,8 @@ class Application(tk.Frame):
         tk.Frame.destroy(self)
 
 if __name__ == '__main__':
-    root = tk.Tk()
-    app = Application(master=root)
-    app.mainloop()
+    root = Tk()
+    root.title("Subtitle Processor")
+    app = SubtitleProcessor(master=root)
+    root.update_idletasks()
+    root.mainloop()
