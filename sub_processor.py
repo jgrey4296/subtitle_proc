@@ -35,6 +35,7 @@ logging = root_logger.getLogger(__name__)
 
 TIME_PAIR   = re.compile("^.+?-->")
 COUNTER     = re.compile("^[0-9]+$")
+FILE_REG    = re.compile("^{(.+?)}$")
 MAX_WIDTH   = 42
 LINE_GROUPS = 2
 MARK_STR    = " _!!!_"
@@ -150,6 +151,10 @@ class SubtitleProcessor(tk.Frame):
 
         for target in files:
             try:
+                reg_match = FILE_REG.match(target)
+                if reg_match:
+                    target = reg_match[1]
+
                 logging.info("Processing: {}".format(target))
                 self.update_status("Processing: {}".format(target))
 
